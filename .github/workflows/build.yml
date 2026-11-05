@@ -1,7 +1,7 @@
 name: Build APK
 
 on:
-  workflow_dispatch: # Allows you to trigger the build manually with a button click
+  workflow_dispatch: # Allows manual trigger
 
 jobs:
   build:
@@ -11,6 +11,12 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
 
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
@@ -19,17 +25,21 @@ jobs:
     - name: Install System Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libsqlite3-dev openjdk-17-jdk libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
+        sudo apt-get install -y libsqlite3-dev openjdk-17-jdk libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
+        autoconf automake libtool libtool-bin pkg-config build-essential git ffmpeg libportmidi-dev libswscale-dev \
+        libavformat-dev libavcodec-dev zlib1g-dev unzip zip tar python3-dev
 
-    - name: Build with Buildozer
-      uses: ArtemSBulgakov/buildozer-action@v1
-      id: buildozer
-      with:
-        command: buildozer android debug
-        repository_root: .
+    - name: Install Buildozer and Cython
+      run: |
+        pip install --upgrade pip
+        pip install buildozer cython setuptools sh
+
+    - name: Run Buildozer Build
+      run: |
+        buildozer android debug
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: Tank-Level-App
-        path: ${{ steps.buildozer.outputs.filename }}
+        path: bin/*.apk
