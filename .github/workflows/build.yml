@@ -22,7 +22,7 @@ jobs:
         sudo apt-get install -y libsqlite3-dev openjdk-17-jdk libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
 
     - name: Build with Buildozer
-      uses: ArtemGovorov/buildozer-action@v1
+      uses: ArtemSBulgakov/buildozer-action@v1
       id: buildozer
       with:
         command: buildozer android debug
