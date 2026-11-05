@@ -1,0 +1,35 @@
+name: Build APK
+
+on:
+  workflow_dispatch: # Allows you to trigger the build manually with a button click
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install System Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libsqlite3-dev openjdk-17-jdk libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
+
+    - name: Build with Buildozer
+      uses: ArtemGovorov/buildozer-action@v1
+      id: buildozer
+      with:
+        command: buildozer android debug
+        repository_root: .
+
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Tank-Level-App
+        path: ${{ steps.buildozer.outputs.filename }}
