@@ -1,0 +1,85 @@
+name: Build APK
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Use Java 17 (Gradle needs it; the runner default is Java 11)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Restore Android cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.buildozer
+            .buildozer
+          key: buildozer-${{ github.run_id }}
+          restore-keys: buildozer-
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git zip unzip autoconf automake libtool pkg-config \
+            zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
+
+      - name: Install Buildozer
+        run: pip install buildozer cython==0.29.37 setuptools
+
+      - name: Skip Apache Ant download (apache.org resets the connection)
+        run: mkdir -p ~/.buildozer/android/platform/apache-ant-1.9.4
+
+      - name: Build (2 attempts, full log saved to build.log)
+        run: |
+          set -o pipefail
+          java -version
+          for i in 1 2; do
+            buildozer android debug 2>&1 | tee -a build.log && exit 0
+            echo "Attempt $i failed" | tee -a build.log
+            sleep 10
+          done
+          exit 1
+
+      - name: Show the real error
+        if: failure()
+        run: |
+          echo "===== GRADLE: WHAT WENT WRONG ====="
+          grep -n -A 12 "What went wrong" build.log | head -n 50
+          echo "===== CYTHON ERRORS ====="
+          grep -n -B 3 -A 8 "Error compiling Cython" build.log | head -n 60
+          echo "===== LAST 25 LINES BEFORE THE BANNER ====="
+          grep -n -B 25 "Buildozer failed to execute" build.log | head -n 30
+
+      - name: Save Android cache (even if the build failed)
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.buildozer
+            .buildozer
+          key: buildozer-${{ github.run_id }}
+
+      - name: Upload full log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: ignore
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: tank-app-apk
+          path: bin/*.apk
