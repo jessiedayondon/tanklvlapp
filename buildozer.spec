@@ -19,8 +19,8 @@ source.include_exts = py, png, jpg, kv, atlas, csv
 version = 1.0.0
 
 # (list) Application requirements
-# Added specific Python 3.11 bindings and required web dependencies 
-requirements = python3==3.11.0, hostpython3==3.11.0, kivy, requests, urllib3, idna, certifi
+# Removing pinned versions lets Buildozer pull safe, pre-compiled environment recipes
+requirements = python3, kivy, requests, urllib3, idna, certifi
 
 # (str) Supported orientations
 orientation = portrait
@@ -34,18 +34,18 @@ android.api = 34
 # (int) Minimum API your APK will support.
 android.minapi = 21
 
-# (bool) If True, then skip trying to update the Android sdk licenses
+# (bool) Automatically accept SDK licenses
 android.accept_sdk_license = True
 
-# (list) The Android architectures to build for
-android.archs = arm64-v8a, armeabi-v7a
+# (list) Only compiling for modern 64-bit devices cuts your build time in half!
+android.archs = arm64-v8a
 
-# (bool) Use command line for progress (keeps build actions logging readable)
+# (bool) Use command line for progress
 android.skip_update = False
 
 [buildozer]
-# (int) Log level (0 = error only, 1 = info, 2 = debug (with command output))
+# (int) Log level (0 = error only, 1 = info, 2 = debug)
 log_level = 2
 
-# (int) Display warning if buildozer is run as root (0 = false, 1 = true)
+# (int) Display warning if buildozer is run as root
 warn_on_root = 0
