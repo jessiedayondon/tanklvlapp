@@ -123,7 +123,7 @@ def add_chevron(w):
         arrow = Line(width=1.4, cap="round", joint="round")
 
     def sync(*_):
-        cx, cy, s = w.right - dp(26), w.center_y, dp(5)
+        cx, cy, s = w.x + w.width - dp(26), w.y + w.height / 2, dp(5)
         arrow.points = [cx - s, cy + s / 2, cx, cy - s / 2, cx + s, cy + s / 2]
 
     w.bind(pos=sync, size=sync)
@@ -180,8 +180,9 @@ class TankScreen(FloatLayout):
         tanks = list(self.db) or ["No Data Found"]
 
         # background photo (export from Figma as background.png)
-        self.add_widget(Image(source=os.path.join(HERE, "background.png"),
-                              fit_mode="cover"))
+        bg = os.path.join(HERE, "background.png")
+        if os.path.exists(bg):
+            self.add_widget(Image(source=bg, fit_mode="cover"))
 
         # white card
         card = BoxLayout(orientation="vertical", padding=dp(22), spacing=dp(14),
