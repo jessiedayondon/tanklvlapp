@@ -2,15 +2,19 @@ import os
 import csv
 import urllib.request
 import io
+import ssl
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.spinner import Spinner
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
+from kivy.graphics import Color, Rectangle, RoundedRectangle
 from kivy.utils import get_color_from_hex
+from kivy.core.window import Window
 
 # 🌐 GOOGLE SHEET WEBLINK HUB
+# Update these placeholders with your actual published Google Sheet CSV web links!
 ONLINE_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTJdUUlLlRZ49lBcKxR7QhUx-8Grh6iks1vR00BRiNXej4UUx3rfFQR1tikuZLX53aJLP8vb4kPyBgh/pub?gid=0&single=true&output=csv"
 VERSION_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTJdUUlLlRZ49lBcKxR7QhUx-8Grh6iks1vR00BRiNXej4UUx3rfFQR1tikuZLX53aJLP8vb4kPyBgh/pub?gid=95776090&single=true&output=csv"
 
@@ -18,240 +22,213 @@ VERSION_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTJdUUlLlRZ49
 LOCAL_FILE = "tanks_data.csv"
 VERSION_FILE = "local_version.txt"
 
-# 📊 THE EXACT DATA MATRIX FROM YOUR SCREENSHOTS
+# 📊 DATA MATRIX REPLICATING THE PROVIDED FILE FORMAT
 DEFAULT_DATA_MATRIX = """Tank,IdealOutput,Correction
-T500,0,-39
-T500,4500,-39
-T500,9000,-78
-T500,13500,-117
-T500,18000,-156
+T500,0,0
+,4500,0
+,9000,0
+,13500,0
+,18000,0
 T510,0,-31
-T510,4500,-32
-T510,9000,-63
-T510,13500,-97
-T510,18000,-128
-T520,0,-38
-T520,4500,-38
-T520,9000,-74
-T520,13500,-113
-T520,18000,-252
+,4500,-32
+,9000,-63
+,13500,-97
+,18000,-126
+T520,0,-36
+,4500,-38
+,9000,-74
+,13500,-113
+,18000,-252
 T530,0,-3
-T530,4500,-24
-T530,9000,-24
-T530,13500,-24
-T530,18000,-25
+,4500,-24
+,9000,-24
+,13500,-24
+,18000,-25
 T540,0,0
-T540,4500,0
-T540,9000,0
-T540,13500,0
-T540,18000,0
+,4500,0
+,9000,0
+,13500,0
+,18000,0
 T550,0,-40
-T550,4500,-40
-T550,9000,-79
-T550,13500,-118
-T550,18000,-154
+,4500,-40
+,9000,-79
+,13500,-118
+,18000,-154
 T560,0,-55
-T560,8500,-55
-T560,17000,-54
-T560,25500,-54
-T560,34000,-56
+,8500,-55
+,17000,-54
+,25500,-54
+,34000,-56
 T570,0,0
-T570,8500,0
-T570,17000,0
-T570,25500,0
-T570,34000,0
+,8500,0
+,17000,0
+,25500,0
+,34000,0
 T580,0,-71
-T580,8500,-71
-T580,17000,-73
-T580,25500,-72
-T580,34000,-72
+,8500,-71
+,17000,-73
+,25500,-72
+,34000,-72
 T590,0,0
-T590,8500,0
-T590,17000,0
-T590,25500,0
-T590,34000,0
+,8500,0
+,17000,0
+,25500,0
+,34000,0
 T595,0,0
-T595,8500,0
-T595,17000,0
-T595,25500,0
-T595,34000,0"""
+,8500,0
+,17000,0
+,25500,0
+,34000,0"""
 
 class SmartCheckingInterface(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.orientation = 'vertical'
         self.padding = 30
-        self.spacing = 10
+        self.spacing = 12
         
-        # Load database files into the phone's engine memory
+        # Canvas light backdrop background configuration
+        with self.canvas.before:
+            Color(1, 1, 1, 1)
+            self.bg_rect = Rectangle(size=self.size, pos=self.pos)
+        self.bind(size=self._update_background, pos=self._update_background)
+        
+        # Load database files into active memory
         self.calibration_db, self.status_message = self.initialize_database()
         
-        # --- PROPORTIONAL FULL-SCREEN SCALING INTERFACE ---
-        self.add_widget(Label(
-            text="SS/FS VOLUME CORRECTION", 
-            font_size='22sp', bold=True, color=get_color_from_hex('#FFFFFF'),
-            size_hint_y=0.08
+        # --- TOP HEADER PANEL AREA (DARK DESIGN BLOCK) ---
+        self.header_panel = BoxLayout(orientation='vertical', size_hint_y=0.38, padding=15, spacing=8)
+        with self.header_panel.canvas.before:
+            Color(0.06, 0.06, 0.07, 1) # #101012 Deep dark matte
+            self.header_bg = RoundedRectangle(size=self.header_panel.size, pos=self.header_panel.pos, radius=[18])
+        self.header_panel.bind(size=self._update_header, pos=self._update_header)
+        
+        # Header string widgets in Capitalize Each Word format
+        self.header_panel.add_widget(Label(
+            text="Ss/Fs Volume Correction", 
+            font_size='18sp', bold=True, color=get_color_from_hex('#F40009'),
+            size_hint_y=0.15
         ))
         
-        self.add_widget(Label(
+        self.header_panel.add_widget(Label(
             text=self.status_message, 
-            font_size='12sp', italic=True, color=get_color_from_hex('#B0B0B0'),
-            size_hint_y=0.05
+            font_size='11sp', color=get_color_from_hex('#666668'),
+            size_hint_y=0.10
         ))
         
-        # 1. Tank Selector Menu Dropdown
-        self.add_widget(Label(text="TANK:", color=get_color_from_hex('#A2EF7C'), bold=True, size_hint_y=0.04))
+        # Minimalist smooth liquid tank graphics element
+        self.tank_widget = BoxLayout(size_hint_y=0.75, size_hint_x=None, width=130, pos_hint={'center_x': 0.5})
+        with self.tank_widget.canvas.before:
+            Color(0.15, 0.15, 0.17, 1) # Stainless steel metallic hue outline
+            self.tank_shell = RoundedRectangle(size=self.tank_widget.size, pos=self.tank_widget.pos, radius=[12])
+            Color(0.21, 0.13, 0.08, 1) # Smooth caramel fluid visualization fill color
+            self.fluid_rect = Rectangle(size=(124, 0), pos=(self.tank_widget.pos[0]+3, self.tank_widget.pos[1]+3))
+        self.tank_widget.bind(size=self._update_tank, pos=self._update_tank)
+        self.header_panel.add_widget(self.tank_widget)
+        self.add_widget(self.header_panel)
+        
+        # --- MANUAL DATA CONTROLS SECTION ---
+        # 1. Dropdown Tank Options Selection Box
+        self.add_widget(Label(text="Tank Selection", color=get_color_from_hex('#555558'), font_size='13sp', bold=True, size_hint_y=0.04, halign='left', text_size=(Window.width-80, None)))
         tank_options = tuple(self.calibration_db.keys()) if self.calibration_db else ('No Data Found',)
         self.tank_spinner = Spinner(
-            text='Select Tank', values=tank_options,
-            background_color=get_color_from_hex('#385723'), color=get_color_from_hex('#FFFFFF'),
-            size_hint_y=0.10
+            text='T500', values=tank_options,
+            background_normal='', background_color=get_color_from_hex('#F3F4F6'), 
+            color=get_color_from_hex('#111111'), size_hint_y=0.07, font_size='14sp'
         )
         self.tank_spinner.bind(text=self.trigger_calculation)
         self.add_widget(self.tank_spinner)
         
-        # 2. Level Input Typing Box (Optimized Input Profile)
-        self.add_widget(Label(text="TANK VOLUME:", color=get_color_from_hex('#E0E0E0'), bold=True, size_hint_y=0.04))
-        self.volume_input = TextInput(
-            text='0', multiline=False, input_filter='float',
-            input_type='number', # 📱 Forces Android to trigger a native number pad layout
-            size_hint_y=0.10, font_size='20sp'
-        )
-        self.volume_input.bind(text=self.trigger_calculation)
-        self.add_widget(self.volume_input)
+        # 2. Level Volume Text Entry Input Box Row + Inline Compute Action
+        self.add_widget(Label(text="Tank Volume Level", color=get_color_from_hex('#555558'), font_size='13sp', bold=True, size_hint_y=0.04, halign='left', text_size=(Window.width-80, None)))
         
-        # 3. New Dedicated Action Execution Button
+        input_row = BoxLayout(orientation='horizontal', size_hint_y=0.07, spacing=10)
+        self.volume_input = TextInput(
+            text='8700', multiline=False, input_filter='float', input_type='number',
+            background_normal='', background_color=get_color_from_hex('#F3F4F6'),
+            foreground_color=get_color_from_hex('#111111'), font_size='15sp', padding=[10, 12, 10, 12]
+        )
+        input_row.add_widget(self.volume_input)
+        
         self.compute_btn = Button(
-            text="✅ COMPUTE CORRECTION",
-            font_size='18sp', bold=True,
-            background_normal='', # Clears default gray Kivy skin gradients
-            background_color=get_color_from_hex('#2E7D32'), # Industrial High-Contrast Green Accent
-            color=get_color_from_hex('#FFFFFF'),
-            size_hint_y=0.12
+            text="Compute", font_size='13sp', bold=True,
+            background_normal='', background_color=get_color_from_hex('#F40009'),
+            color=get_color_from_hex('#FFFFFF'), size_hint_x=0.3
         )
         self.compute_btn.bind(on_press=self.trigger_calculation)
-        self.add_widget(self.compute_btn)
+        input_row.add_widget(self.compute_btn)
+        self.add_widget(input_row)
         
-        # 4. Dynamic Mid-point Volume Correction Output Area
-        self.add_widget(Label(text="VOLUME CORRECTION:", color=get_color_from_hex('#A2EF7C'), bold=True, size_hint_y=0.04))
-        self.correction_lbl = Label(text="0.00", font_size='26sp', bold=True, color=get_color_from_hex('#FF4D4D'), size_hint_y=0.08)
-        self.add_widget(self.correction_lbl)
+        # --- OUTPUT RESULT ROW DISPLAY CARDS ---
+        # 3. Capitalized Volume Correction Row Card
+        self.card_corr = BoxLayout(orientation='horizontal', size_hint_y=0.11, padding=20)
+        with self.card_corr.canvas.before:
+            Color(0.97, 0.98, 0.98, 1) # Slate gray canvas tint
+            self.bg_corr = RoundedRectangle(size=self.card_corr.size, pos=self.card_corr.pos, radius=[14])
+        self.card_corr.bind(size=self._update_card_corr, pos=self._update_card_corr)
         
-        # 5. Final Aggregated Corrected Tank Volume Output Area
-        self.add_widget(Label(text="CORRECTED VOLUME:", color=get_color_from_hex('#A2EF7C'), bold=True, size_hint_y=0.04))
-        self.corrected_lbl = Label(text="0.00", font_size='32sp', bold=True, color=get_color_from_hex('#00FFCC'), size_hint_y=0.12)
-        self.add_widget(self.corrected_lbl)
+        self.card_corr.add_widget(Label(text="Volume Correction", font_size='14sp', bold=True, color=get_color_from_hex('#374151'), halign='left', text_size=(Window.width, None)))
+        self.correction_lbl = Label(text="0.00", font_size='22sp', bold=True, color=get_color_from_hex('#EF4444'), halign='right', text_size=(Window.width, None))
+        self.card_corr.add_widget(self.correction_lbl)
+        self.add_widget(self.card_corr)
         
-        # Bottom flexible buffer balancing space layout block
-        self.add_widget(BoxLayout(size_hint_y=0.13))
+        # 4. Capitalized Corrected Volume Row Card
+        self.card_res = BoxLayout(orientation='horizontal', size_hint_y=0.11, padding=20)
+        with self.card_res.canvas.before:
+            Color(0.95, 0.98, 0.96, 1) # Green calculation tint
+            self.bg_res = RoundedRectangle(size=self.card_res.size, pos=self.card_res.pos, radius=[14])
+        self.card_res.bind(size=self._update_card_res, pos=self._update_card_res)
+        
+        self.card_res.add_widget(Label(text="Corrected Volume", font_size='14sp', bold=True, color=get_color_from_hex('#166534'), halign='left', text_size=(Window.width, None)))
+        self.corrected_lbl = Label(text="8,700.00 L", font_size='22sp', bold=True, color=get_color_from_hex('#16A34A'), halign='right', text_size=(Window.width, None))
+        self.card_res.add_widget(self.corrected_lbl)
+        self.add_widget(self.card_res)
+        
+        self.trigger_calculation()
+
+    # --- CANVAS COORDINATE UPDATES ---
+    def _update_background(self, instance, value): self.bg_rect.size = instance.size; self.bg_rect.pos = instance.pos
+    def _update_header(self, instance, value): self.header_bg.size = instance.size; self.header_bg.pos = instance.pos
+    def _update_card_corr(self, instance, value): self.bg_corr.size = instance.size; self.bg_corr.pos = instance.pos
+    def _update_card_res(self, instance, value): self.bg_res.size = instance.size; self.bg_res.pos = instance.pos
+    
+    def _update_tank(self, instance, value):
+        self.tank_shell.size = instance.size
+        self.tank_shell.pos = instance.pos
+        self.update_fluid_visual()
+
+    def update_fluid_visual(self):
+        """ Scales fluid height smoothly based on calculation ratios """
+        tank = self.tank_spinner.text
+        if tank not in self.calibration_db or not self.volume_input.text:
+            self.fluid_rect.size = (124, 0)
+            return
+        try:
+            current_vol = float(self.volume_input.text)
+        except ValueError:
+            current_vol = 0.0
+            
+        points = self.calibration_db[tank]
+        max_capacity = points[-1][0] if points else 1.0
+        if max_capacity <= 0:
+            max_capacity = 1.0
+            
+        # Keep visual percentage capped securely between 0% and 100%
+        ratio = min(max(current_vol / max_capacity, 0.0), 1.0)
+        max_visual_height = self.tank_widget.height - 6
+        visual_height = ratio * max_visual_height
+        
+        self.fluid_rect.pos = (self.tank_widget.pos[0] + 3, self.tank_widget.pos[1] + 3)
+        self.fluid_rect.size = (self.tank_widget.width - 6, visual_height)
 
     def initialize_database(self):
         """ Automatically verifies active files and pulls cloud sheet logs when online """
         should_download = False
         status = ""
+        context = ssl._create_unverified_context() # Safe SSL bridge passing for native Android environments
         
         local_version = "0"
         if os.path.exists(VERSION_FILE):
             with open(VERSION_FILE, "r") as f:
                 local_version = f.read().strip()
                 
-        if not os.path.exists(LOCAL_FILE):
-            should_download = True
-
-        # Try connection web check
-        try:
-            response = urllib.request.urlopen(VERSION_CSV_URL, timeout=2)
-            version_data = response.read().decode('utf-8')
-            reader = csv.DictReader(io.StringIO(version_data))
-            online_version = "0"
-            for row in reader:
-                online_version = row['Version'].strip()
-                break
-            
-            if online_version != local_version:
-                should_download = True
-                local_version = online_version
-            else:
-                status = "🔒 Up to Date: Operating offline using active cache."
-        except Exception:
-            should_download = False
-            status = "✈️ Offline Mode: Operating smoothly using cached matrix numbers"
-
-        # Update cache file if network indicates version shift
-        if should_download:
-            try:
-                response = urllib.request.urlopen(ONLINE_CSV_URL, timeout=4)
-                cloud_content = response.read().decode('utf-8')
-                with open(LOCAL_FILE, mode='w', encoding='utf-8') as f:
-                    f.write(cloud_content)
-                with open(VERSION_FILE, mode='w', encoding='utf-8') as f:
-                    f.write(local_version)
-                status = "🔄 Database Updated! Saved new calibration parameters."
-            except Exception:
-                if not os.path.exists(LOCAL_FILE):
-                    with open(LOCAL_FILE, mode='w', encoding='utf-8') as f:
-                        f.write(DEFAULT_DATA_MATRIX)
-                    with open(VERSION_FILE, mode='w', encoding='utf-8') as f:
-                        f.write("1")
-                status = "✈️ Engine Ready: Initialized offline fallback parameters"
-
-        # Organize data logs into active structural lookup frames
-        data_matrix = {}
-        if os.path.exists(LOCAL_FILE):
-            with open(LOCAL_FILE, mode='r', encoding='utf-8') as file:
-                reader = csv.DictReader(file)
-                for row in reader:
-                    tank = row.get('Tank', '').strip()
-                    if not tank:
-                        continue
-                    ideal_out = float(row['IdealOutput'])
-                    correction = float(row['Correction'])
-                    if tank not in data_matrix:
-                        data_matrix[tank] = []
-                    data_matrix[tank].append((ideal_out, correction))
-            
-            # Ensure proper linear sort by IdealOutput order
-            for tank in data_matrix:
-                data_matrix[tank] = sorted(data_matrix[tank], key=lambda x: x[0])
-                
-        return data_matrix, status
-
-    def trigger_calculation(self, *args):
-        """ Core math engine. Runs linear proportional curve scaling on interactions """
-        tank = self.tank_spinner.text
-        if tank not in self.calibration_db:
-            return
-        try:
-            current_vol = float(self.volume_input.text) if self.volume_input.text else 0.0
-        except ValueError:
-            current_vol = 0.0
-            
-        points = self.calibration_db[tank]
-        correction = 0.0
-        
-        # --- Linear Curve Interpolation Formula Engine ---
-        if current_vol <= points[0][0]:
-            correction = points[0][1]
-        elif current_vol >= points[-1][0]:
-            correction = points[-1][1]
-        else:
-            for i in range(len(points) - 1):
-                x0, y0 = points[i]
-                x1, y1 = points[i+1]
-                if x0 <= current_vol <= x1:
-                    # Mathematical Formula: y = y0 + ((x - x0) * (y1 - y0)) / (x1 - x0)
-                    correction = y0 + ((current_vol - x0) * (y1 - y0)) / (x1 - x0)
-                    break
-                    
-        corrected_vol = current_vol + correction
-        
-        # Update UI layout views with clean structural string format markers
-        self.correction_lbl.text = f"{correction:+.2f}"
-        self.corrected_lbl.text = f"{corrected_vol:,.2f}"
-
-class TankInterpolationApp(App):
-    def build(self):
-        return SmartCheckingInterface()
-
-if __name__ == '__main__':
-    TankInterpolationApp().run()
