@@ -33,16 +33,34 @@ jobs:
       - name: Skip Apache Ant download (apache.org resets the connection)
         run: mkdir -p ~/.buildozer/android/platform/apache-ant-1.9.4
 
-      - name: Build (retries up to 3 times)
+      - name: Build (2 attempts, full log saved to build.log)
         run: |
-          for i in 1 2 3; do
-            buildozer -v android debug && exit 0
-            echo "Attempt $i failed, retrying..."
+          set -o pipefail
+          for i in 1 2; do
+            buildozer android debug 2>&1 | tee -a build.log && exit 0
+            echo "Attempt $i failed" | tee -a build.log
             sleep 10
           done
           exit 1
 
-      - uses: actions/upload-artifact@v4
+      - name: Show the real error
+        if: failure()
+        run: |
+          echo "===== ERROR LINES ====="
+          grep -n -E "Error|error:|ERROR|FAILED|Traceback|Exception" build.log | tail -n 40
+          echo "===== LAST 60 LINES ====="
+          tail -n 60 build.log
+
+      - name: Upload full log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: ignore
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
           name: tank-app-apk
           path: bin/*.apk
