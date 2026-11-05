@@ -22,8 +22,6 @@ jobs:
       with:
         python-version: '3.11'
 
-    # ⚡ FAST-TRACK CACHE LAYER INTEGRATION
-    # Saves your heavy compiled dependencies so future builds skip the 20-minute compile wait
     - name: Cache Buildozer and Android SDK Data
       uses: actions/cache@v4
       with:
@@ -52,8 +50,16 @@ jobs:
       run: |
         yes | buildozer android debug
 
-    - name: Upload APK Artifact
+    # ⚡ EXPLICIT RAW BUNDLE EXTRACTOR
+    - name: Prepare Direct APK File
+      run: |
+        mkdir -p deploy
+        cp bin/*.apk deploy/TankApp-Installer.apk
+
+    # ⚡ ZIP BYPASS CONFIGURATION
+    - name: Upload Raw APK Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: Tank-Level-App
-        path: bin/*.apk
+        name: TankApp-Installer
+        path: deploy/TankApp-Installer.apk
+        compression-level: 0  # Forces an uncompressed, raw stream format
