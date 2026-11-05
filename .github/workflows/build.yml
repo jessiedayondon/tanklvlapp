@@ -20,14 +20,14 @@ jobs:
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.10'
+        python-version: '3.11'
 
     - name: Install System Dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y libsqlite3-dev openjdk-17-jdk libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
         autoconf automake libtool libtool-bin pkg-config build-essential git ffmpeg libportmidi-dev libswscale-dev \
-        libavformat-dev libavcodec-dev zlib1g-dev unzip zip tar python3-dev libffi-dev libssl-dev
+        libavformat-dev libavcodec-dev zlib1g-dev unzip zip tar python3-dev libffi-dev libssl-dev libltdl-dev
 
     - name: Install Buildozer and Cython
       run: |
@@ -37,3 +37,9 @@ jobs:
     - name: Run Buildozer Build
       run: |
         yes | buildozer android debug
+
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Tank-Level-App
+        path: bin/*.apk
