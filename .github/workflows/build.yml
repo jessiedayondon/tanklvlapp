@@ -22,6 +22,20 @@ jobs:
       with:
         python-version: '3.11'
 
+    # ⚡ FAST-TRACK CACHE LAYER INTEGRATION
+    # Saves your heavy compiled dependencies so future builds skip the 20-minute compile wait
+    - name: Cache Buildozer and Android SDK Data
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.buildozer
+          .buildozer
+          ~/.android
+          ~/.gradle
+        key: buildozer-fasttrack-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+        restore-keys: |
+          buildozer-fasttrack-${{ runner.os }}-
+
     - name: Install System Dependencies
       run: |
         sudo apt-get update
