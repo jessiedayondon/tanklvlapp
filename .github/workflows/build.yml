@@ -13,6 +13,14 @@ jobs:
         with:
           python-version: "3.10"
 
+      - name: Cache Android downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.buildozer
+            .buildozer
+          key: buildozer-${{ hashFiles('buildozer.spec') }}
+
       - name: Install system packages
         run: |
           sudo apt-get update
@@ -22,8 +30,17 @@ jobs:
       - name: Install Buildozer
         run: pip install buildozer cython==0.29.37 setuptools
 
-      - name: Build
-        run: buildozer -v android debug
+      - name: Skip Apache Ant download (apache.org resets the connection)
+        run: mkdir -p ~/.buildozer/android/platform/apache-ant-1.9.4
+
+      - name: Build (retries up to 3 times)
+        run: |
+          for i in 1 2 3; do
+            buildozer -v android debug && exit 0
+            echo "Attempt $i failed, retrying..."
+            sleep 10
+          done
+          exit 1
 
       - uses: actions/upload-artifact@v4
         with:
